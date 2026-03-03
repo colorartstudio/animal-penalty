@@ -1,1 +1,4 @@
+# Evita loop infinito no index.html
+/index.html /index.html 200
+# Redireciona todas as outras rotas para o SPA
 /* /index.html 200
