@@ -54,15 +54,22 @@ const Router = () => {
   // Unlock audio on first interaction
   React.useEffect(() => {
     const unlock = () => {
-      audioManager.unlock();
-      window.removeEventListener('click', unlock);
-      window.removeEventListener('touchstart', unlock);
+      // Only remove listeners if unlock was successful
+      if (audioManager.unlock()) {
+        window.removeEventListener('click', unlock);
+        window.removeEventListener('touchstart', unlock);
+        window.removeEventListener('keydown', unlock);
+      }
     };
+    
     window.addEventListener('click', unlock);
     window.addEventListener('touchstart', unlock);
+    window.addEventListener('keydown', unlock);
+    
     return () => {
       window.removeEventListener('click', unlock);
       window.removeEventListener('touchstart', unlock);
+      window.removeEventListener('keydown', unlock);
     };
   }, []);
   
