@@ -79,10 +79,20 @@ export const AuthScreen = () => {
                   {MASCOTS.map(m => (
                     <div key={m.id} onClick={() => setMascot(m.id)} className={`cursor-pointer aspect-square rounded-xl border-4 ${mascot === m.id ? 'border-yellow-400 bg-yellow-100' : 'border-black bg-white'} p-1 flex items-center justify-center transition-transform hover:scale-105 overflow-hidden`}>
                       {m.icon ? (
-                        <img src={m.icon} alt={m.mascotName} width={72} height={72} decoding="async" className="w-full h-full object-contain transform scale-125" />
-                      ) : (
-                        <span className="text-4xl">{m.emoji}</span>
-                      )}
+                        <img
+                          src={m.icon}
+                          alt={m.mascotName}
+                          width={72}
+                          height={72}
+                          decoding="async"
+                          className="w-full h-full object-contain transform scale-125"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                            e.currentTarget.nextSibling?.classList.remove('hidden');
+                          }}
+                        />
+                      ) : null}
+                      <span className={`text-4xl ${m.icon ? 'hidden' : ''}`}>{m.emoji}</span>
                     </div>
                   ))}
                 </div>
