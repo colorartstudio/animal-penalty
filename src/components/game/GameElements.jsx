@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { ZONES, MASCOTS } from '../../utils/constants';
-import ballImg from '../../assets/images/ball.svg';
+import { ZONES, MASCOTS, BALL_IMG, STADIUM_LOOP, goalkeeperSrc } from '../../utils/constants';
 
 export const ScoreDots = ({ kicks, maxKicks = 5 }) => {
   const displayKicks = Math.max(kicks.length, maxKicks); 
@@ -71,7 +70,7 @@ export const Goalkeeper = ({ diveZone, mascotId, isAway = false }) => {
           }
       }
 
-      const imgSrc = `/assets/goalkeeper/${mascot.assetFolder}/${mascot.assetPrefix}_${suffix}.svg`;
+      const imgSrc = goalkeeperSrc(mascot, suffix);
       const isIdle = !diveZone;
       console.log(`GK Render: ${mascot.id} -> ${imgSrc} (Zone: ${diveZone || 'REST'})`);
 
@@ -85,9 +84,13 @@ export const Goalkeeper = ({ diveZone, mascotId, isAway = false }) => {
         >
            <img 
              src={imgSrc} 
-             alt={`Goleiro ${mascot.countryName}`} 
+             alt={`Goleiro ${mascot.countryName}`}
+             width={140}
+             height={140}
+             decoding="async"
+             fetchPriority={isIdle ? 'high' : 'auto'}
              className={`w-full h-full object-contain ${isIdle ? 'animate-breathing' : ''}`}
-             onError={(e) => {
+             onError={() => {
                  console.error(`GK Image Error: ${imgSrc}`);
                  setImgError(true);
              }}
@@ -217,8 +220,11 @@ export const AnimatedBall = ({ targetZoneId }) => {
         style={ballStyle}
       >
         <img 
-            src={ballImg} 
-            alt="Ball" 
+            src={BALL_IMG} 
+            alt="Ball"
+            width={96}
+            height={96}
+            decoding="async"
             className="w-full h-full object-contain drop-shadow-md"
         />
         {/* Motion Blur Trail Hint */}
@@ -227,3 +233,24 @@ export const AnimatedBall = ({ targetZoneId }) => {
     </>
   );
 };
+
+export const StadiumLoop = () => (
+  <div className="absolute top-0 inset-x-0 h-full z-0">
+    <video
+      autoPlay
+      muted
+      loop
+      playsInline
+      preload="auto"
+      className="w-full h-full object-cover opacity-60"
+      style={{
+        maskImage: 'linear-gradient(to bottom, black 40%, transparent 90%)',
+        WebkitMaskImage: 'linear-gradient(to bottom, black 40%, transparent 90%)',
+      }}
+    >
+      <source src={STADIUM_LOOP} type="video/mp4" />
+    </video>
+    <div className="absolute inset-0 bg-gradient-to-b from-[#0d1322]/80 via-transparent to-[#0d1322] mix-blend-multiply" />
+  </div>
+);
+

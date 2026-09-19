@@ -1,7 +1,8 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import { AppContext } from '../context/AppContext';
 import { Card, Button } from '../components/ui/Base';
 import { MascotAvatar } from '../components/ui/MascotAvatar';
+import { MASCOTS, preloadMatchAssets } from '../utils/constants';
 import { Target, Users, Globe, Share2, PlusCircle, PlayCircle } from 'lucide-react';
 
 export const LobbyScreen = () => {
@@ -19,6 +20,13 @@ export const LobbyScreen = () => {
 
   const opponents = users.filter(u => u.id !== currentUser.id);
   const playableOpponents = [{ id: 'cpu', username: 'Convidado (P2 Local)', mascotId: 'cn' }, ...opponents];
+
+  // Warm-up: mascote do user + CPU default (br) + vídeo do estádio
+  useEffect(() => {
+    const p1Mascot = MASCOTS.find((m) => m.id === currentUser.mascotId);
+    const cpuMascot = MASCOTS.find((m) => m.id === 'br');
+    preloadMatchAssets(p1Mascot, cpuMascot, { timeoutMs: 15000, minMs: 0 });
+  }, [currentUser.mascotId]);
 
   const startLocalMatch = (oppId) => {
     if (!isTraining && currentWallet.balanceMPH < stake) {

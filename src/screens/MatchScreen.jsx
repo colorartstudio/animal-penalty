@@ -1,13 +1,12 @@
 import React, { useState, useContext, useEffect } from 'react';
 import { AppContext } from '../context/AppContext';
 import { Card, Button } from '../components/ui/Base';
+import { LoadingOverlay } from '../components/ui/LoadingOverlay';
 import { MascotAvatar } from '../components/ui/MascotAvatar';
-import { ScoreDots, Goalkeeper, AnimatedBall } from '../components/game/GameElements';
-import { ZONES, MASCOTS } from '../utils/constants';
+import { ScoreDots, Goalkeeper, AnimatedBall, StadiumLoop } from '../components/game/GameElements';
+import { ZONES, MASCOTS, BALL_IMG, KICK_BTN_IMG, preloadMatchAssets } from '../utils/constants';
 import { MessageCircle, Info, X, ShieldCheck, Wallet } from 'lucide-react';
 import { audioManager } from '../utils/audio';
-import kickBtnImg from '../assets/images/botao_kick.svg';
-import ballImg from '../assets/images/ball.svg';
 
 export const MatchScreen = () => {
   const { route, currentUser, users, navigate, lockStake, transact, setBank, matches, setMatches, soundEnabled, ledger } = useContext(AppContext);
@@ -19,6 +18,8 @@ export const MatchScreen = () => {
 
   const hasInitialized = React.useRef(false); // Ref para StrictMode
 
+  const [assetsReady, setAssetsReady] = useState(false);
+  const [loadProgress, setLoadProgress] = useState({ loaded: 0, total: 0 });
   const [hasStarted, setHasStarted] = useState(false);
   const [turn, setTurn] = useState(1); 
   const [phase, setPhase] = useState('INIT'); 
@@ -52,6 +53,29 @@ export const MatchScreen = () => {
       audioManager.stopAmbience();
     };
   }, [hasStarted, soundEnabled]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const p1Mascot = MASCOTS.find((m) => m.id === p1.mascotId);
+    const p2Mascot = MASCOTS.find((m) => m.id === p2.mascotId);
+
+    setAssetsReady(false);
+    setLoadProgress({ loaded: 0, total: 0 });
+
+    preloadMatchAssets(p1Mascot, p2Mascot, {
+      timeoutMs: 12000,
+      minMs: 300,
+      onProgress: (p) => {
+        if (!cancelled) setLoadProgress(p);
+      },
+    }).then(() => {
+      if (!cancelled) setAssetsReady(true);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [p1.mascotId, p2.mascotId]);
 
   const [shakeNet, setShakeNet] = useState(false);
 
@@ -159,40 +183,30 @@ export const MatchScreen = () => {
   }, [timer, phase, hasStarted, currentAttacker, currentDefender]);
 
   useEffect(() => {
-    // Only run this ONCE when component mounts
-    let isMounted = true;
-    
-    // StrictMode guard: se já inicializou nesta instância de ref, ignora.
-    if (hasInitialized.current) return; 
+    if (!assetsReady) return;
+    if (hasInitialized.current || hasStarted) return;
 
-    if (!hasStarted) {
-       hasInitialized.current = true; // Marca como inicializado
+    hasInitialized.current = true;
 
-       if (soundEnabled) {
-          // Force ambience play on start
-          audioManager.play('ambience');
-       }
-
-       if (!isTraining && isMounted) {
-          // Debita a aposta (Stake) APENAS UMA VEZ no início
-          // Verifica ledger para robustez extra (caso navegue e volte e o ref resete)
-          const alreadyDeducted = ledger.some(l => l.meta?.matchId === matchId && l.type === 'match_entry');
-          
-          if (!alreadyDeducted) {
-             transact(p1.id, 'match_entry', 0, -stake, { 
-                matchId, 
-                desc: 'Aposta da Partida' 
-             });
-          } else {
-             console.log("MatchScreen: Aposta já debitada para matchId", matchId);
-          }
-       }
-       setHasStarted(true);
-       setPhase('PRIVACY_A');
+    if (soundEnabled) {
+      audioManager.play('ambience');
     }
 
-    return () => { isMounted = false; };
-  }, []); // Empty dependency array ensures it runs only ONCE on mount
+    if (!isTraining) {
+      const alreadyDeducted = ledger.some(l => l.meta?.matchId === matchId && l.type === 'match_entry');
+      if (!alreadyDeducted) {
+        transact(p1.id, 'match_entry', 0, -stake, {
+          matchId,
+          desc: 'Aposta da Partida',
+        });
+      } else {
+        console.log('MatchScreen: Aposta já debitada para matchId', matchId);
+      }
+    }
+
+    setHasStarted(true);
+    setPhase('PRIVACY_A');
+  }, [assetsReady]);
 
   const handleTimeout = () => {
     audioManager.play('whistle'); // Apito de tempo esgotado
@@ -347,6 +361,18 @@ export const MatchScreen = () => {
   const isCpuTurn = (phase === 'PICK_A' && currentAttacker.id === 'cpu') || 
                     (phase === 'PICK_D' && currentDefender.id === 'cpu');
 
+  if (!assetsReady) {
+    return (
+      <div className="absolute inset-0 z-50 bg-[#0d1322] flex flex-col overflow-hidden">
+        <LoadingOverlay
+          label="Carregando arena…"
+          loaded={loadProgress.loaded}
+          total={loadProgress.total}
+        />
+      </div>
+    );
+  }
+
   if (phase === 'START') {
     return (
       <div className="absolute inset-0 z-50 bg-[#0d1322] flex flex-col items-center justify-center text-white px-6 text-center">
@@ -388,17 +414,7 @@ export const MatchScreen = () => {
         </div>
 
         <div className="flex-1 relative flex flex-col items-center justify-center w-full bg-[#0d1322] overflow-hidden">
-           {/* Background Video Layer */}
-           <div className="absolute top-0 inset-x-0 h-full z-0">
-              <img 
-                src="/assets/videos/loop_v1/loop_v1.gif"
-                alt="Stadium Background"
-                className="w-full h-full object-cover opacity-60"
-                 style={{ maskImage: 'linear-gradient(to bottom, black 40%, transparent 90%)' }}
-               />
-               {/* Overlay Gradient for integration */}
-              <div className="absolute inset-0 bg-gradient-to-b from-[#0d1322]/80 via-transparent to-[#0d1322] mix-blend-multiply"></div>
-           </div>
+           <StadiumLoop />
            
            {/* Grass Field with Advanced Perspective */}
            <div className="absolute bottom-0 w-full h-[48%] bg-[#1a472a] flex flex-col z-0 perspective-[800px] overflow-hidden">
@@ -511,7 +527,7 @@ export const MatchScreen = () => {
               style={{ background: 'transparent', border: 'none', padding: 0 }}
             >
               <img 
-                src={kickBtnImg} 
+                src={KICK_BTN_IMG} 
                 alt="Kick" 
                 className={`w-full h-full object-contain drop-shadow-2xl ${(!phase.startsWith('PICK') || isCpuTurn) ? 'opacity-50 grayscale' : ''}`}
               />
@@ -628,17 +644,7 @@ export const MatchScreen = () => {
         </div>
 
       <div className="flex-1 relative flex flex-col items-center justify-center w-full bg-[#0d1322] overflow-hidden">
-         {/* Background Video Layer */}
-         <div className="absolute top-0 inset-x-0 h-full z-0">
-            <img 
-              src="/assets/videos/loop_v1/loop_v1.gif"
-              alt="Stadium Background"
-              className="w-full h-full object-cover opacity-60"
-              style={{ maskImage: 'linear-gradient(to bottom, black 40%, transparent 90%)' }}
-            />
-            {/* Overlay Gradient for integration */}
-            <div className="absolute inset-0 bg-gradient-to-b from-[#0d1322]/80 via-transparent to-[#0d1322] mix-blend-multiply"></div>
-         </div>
+         <StadiumLoop />
 
          {/* Grass Field with Advanced Perspective */}
          <div className="absolute bottom-0 w-full h-[60%] bg-[#1a472a] flex flex-col z-0 perspective-[800px] overflow-hidden">
@@ -694,7 +700,7 @@ export const MatchScreen = () => {
                    style={{ top: z.top, left: z.left }}
                  >
                    <div className={`w-full h-full rounded-full border-[3px] ${selectedZone === z.id ? 'bg-blue-500/40 border-blue-400' : 'bg-blue-900/40 border-blue-600/50'} backdrop-blur-sm flex items-center justify-center shadow-inner`}>
-                      <img src={ballImg} alt="Target" className="w-6 h-6 object-contain opacity-90 drop-shadow-md grayscale" />
+                      <img src={BALL_IMG} alt="Target" width={24} height={24} decoding="async" className="w-6 h-6 object-contain opacity-90 drop-shadow-md grayscale" />
                    </div>
                  </button>
                ))}
@@ -744,7 +750,7 @@ export const MatchScreen = () => {
               style={{ background: 'transparent', border: 'none', padding: 0 }}
             >
               <img 
-                src={kickBtnImg} 
+                src={KICK_BTN_IMG} 
                 alt="Kick" 
                 className={`w-full h-full object-contain drop-shadow-2xl ${(!phase.startsWith('PICK') || isCpuTurn) ? 'opacity-50 grayscale' : ''}`}
               />

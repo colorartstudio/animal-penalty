@@ -1,7 +1,8 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import { AppContext } from '../context/AppContext';
 import { Card, Button } from '../components/ui/Base';
-import { MASCOTS } from '../utils/constants';
+import { LoadingOverlay } from '../components/ui/LoadingOverlay';
+import { MASCOTS, MASCOT_ICON_URLS, preloadImages } from '../utils/constants';
 
 export const AuthScreen = () => {
   const { registerUser, loginUser } = useContext(AppContext);
@@ -10,6 +11,29 @@ export const AuthScreen = () => {
   const [pin, setPin] = useState('');
   const [mascot, setMascot] = useState('br');
   const [error, setError] = useState('');
+  const [iconsReady, setIconsReady] = useState(false);
+  const [iconProgress, setIconProgress] = useState({ loaded: 0, total: MASCOT_ICON_URLS.length });
+
+  useEffect(() => {
+    if (isLogin) return;
+
+    let cancelled = false;
+    setIconsReady(false);
+    setIconProgress({ loaded: 0, total: MASCOT_ICON_URLS.length });
+
+    preloadImages(MASCOT_ICON_URLS, {
+      timeoutMs: 8000,
+      onProgress: (p) => {
+        if (!cancelled) setIconProgress(p);
+      },
+    }).then(() => {
+      if (!cancelled) setIconsReady(true);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isLogin]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -43,20 +67,29 @@ export const AuthScreen = () => {
           {!isLogin && (
             <div>
               <label className="block font-black mb-2 uppercase text-sm">Escolha seu Mascote</label>
-              <div className="grid grid-cols-4 gap-2">
-                {MASCOTS.map(m => (
-                  <div key={m.id} onClick={() => setMascot(m.id)} className={`cursor-pointer aspect-square rounded-xl border-4 ${mascot === m.id ? 'border-yellow-400 bg-yellow-100' : 'border-black bg-white'} p-1 flex items-center justify-center transition-transform hover:scale-105 overflow-hidden`}>
-                    {m.icon ? (
-                      <img src={m.icon} alt={m.mascotName} className="w-full h-full object-contain transform scale-125" />
-                    ) : (
-                      <span className="text-4xl">{m.emoji}</span>
-                    )}
-                  </div>
-                ))}
-              </div>
+              {!iconsReady ? (
+                <LoadingOverlay
+                  compact
+                  label="Carregando mascotes…"
+                  loaded={iconProgress.loaded}
+                  total={iconProgress.total}
+                />
+              ) : (
+                <div className="grid grid-cols-4 gap-2">
+                  {MASCOTS.map(m => (
+                    <div key={m.id} onClick={() => setMascot(m.id)} className={`cursor-pointer aspect-square rounded-xl border-4 ${mascot === m.id ? 'border-yellow-400 bg-yellow-100' : 'border-black bg-white'} p-1 flex items-center justify-center transition-transform hover:scale-105 overflow-hidden`}>
+                      {m.icon ? (
+                        <img src={m.icon} alt={m.mascotName} width={72} height={72} decoding="async" className="w-full h-full object-contain transform scale-125" />
+                      ) : (
+                        <span className="text-4xl">{m.emoji}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
-          <Button className="w-full text-xl mt-4" variant="action">
+          <Button className="w-full text-xl mt-4" variant="action" disabled={!isLogin && !iconsReady}>
             {isLogin ? 'ENTRAR NA ARENA' : 'CRIAR CONTA'}
           </Button>
         </form>
